@@ -1,0 +1,4 @@
+fastmcp
+motor
+python-dotenv
+uvicorn
