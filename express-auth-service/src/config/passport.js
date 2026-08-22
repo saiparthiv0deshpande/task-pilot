@@ -6,8 +6,8 @@ const { encrypt } = require('../utils/encryption');
 // Dummy values for local dev to avoid crashing if env is missing
 const clientID = process.env.GITHUB_CLIENT_ID || 'dummy_client_id';
 const clientSecret = process.env.GITHUB_CLIENT_SECRET || 'dummy_client_secret';
-const callbackURL = '/auth/github/callback'; 
-// Note: In prod, callbackURL should be absolute like 'https://your-domain.com/auth/github/callback'
+const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+const callbackURL = `${backendUrl}/auth/github/callback`;
 
 passport.use(new GitHubStrategy({
     clientID,
