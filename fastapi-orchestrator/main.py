@@ -185,5 +185,7 @@ async def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting FastAPI Orchestrator on port 8080...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+    import os
+    port = int(os.getenv("PORT", 8080))
+    print(f"Starting FastAPI Orchestrator on port {port}...")
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
