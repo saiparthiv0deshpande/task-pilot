@@ -59,4 +59,4 @@ if __name__ == "__main__":
     import os
     port = int(os.getenv("PORT", 8001))
     print(f"Starting GitHub MCP Server on SSE transport (Port {port})...")
-    mcp.run(transport='sse', port=port)
+    mcp.run(transport='sse', host="0.0.0.0", port=port)
