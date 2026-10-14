@@ -1,33 +1,41 @@
 import os
+
+from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from dotenv import load_dotenv
 
-load_dotenv(override=True)
-# Must exactly match the Express.js ENCRYPTION_KEY
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "12345678901234567890123456789012").encode('utf-8')
+def _key() -> bytes:
+    value = os.getenv("ENCRYPTION_KEY")
+    if not value:
+        raise RuntimeError("Missing required environment variable: ENCRYPTION_KEY")
+    encoded = value.encode("utf-8")
+    if len(encoded) != 32:
+        raise RuntimeError("ENCRYPTION_KEY must be exactly 32 UTF-8 bytes")
+    return encoded
 
-def decrypt_token(encrypted_str: str) -> str:
-    """Decrypts the AES-256-CBC token saved by Express.js"""
-    if not encrypted_str:
+
+def encrypt_token(plaintext: str) -> str:
+    if not plaintext:
         return ""
-    try:
-        parts = encrypted_str.split(':')
-        if len(parts) != 2:
-            return ""
-            
-        iv = bytes.fromhex(parts[0])
-        ciphertext = bytes.fromhex(parts[1])
-        
-        cipher = Cipher(algorithms.AES(ENCRYPTION_KEY), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-        padded_data = decryptor.update(ciphertext) + decryptor.finalize()
-        
-        # PKCS7 unpadding
-        padding_length = padded_data[-1]
-        data = padded_data[:-padding_length]
-        return data.decode('utf-8')
-    except Exception as e:
-        print(f"Decryption failed: {e}")
+    nonce = os.urandom(12)
+    encrypted = AESGCM(_key()).encrypt(nonce, plaintext.encode("utf-8"), None)
+    return f"v2:{nonce.hex()}:{encrypted[-16:].hex()}:{encrypted[:-16].hex()}"
+
+
+def decrypt_token(encrypted: str) -> str:
+    if not encrypted:
         return ""
+    parts = encrypted.split(":")
+    if len(parts) == 4 and parts[0] == "v2":
+        nonce, tag, ciphertext = bytes.fromhex(parts[1]), bytes.fromhex(parts[2]), bytes.fromhex(parts[3])
+        return AESGCM(_key()).decrypt(nonce, ciphertext + tag, None).decode("utf-8")
+
+    # Transitional decoding for records written by the former CBC format.
+    if len(parts) == 2:
+        iv, ciphertext = bytes.fromhex(parts[0]), bytes.fromhex(parts[1])
+        decryptor = Cipher(algorithms.AES(_key()), modes.CBC(iv)).decryptor()
+        padded = decryptor.update(ciphertext) + decryptor.finalize()
+        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+        return (unpadder.update(padded) + unpadder.finalize()).decode("utf-8")
+    raise ValueError("Unsupported encrypted credential format")
